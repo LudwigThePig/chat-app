@@ -13,7 +13,8 @@ const app= express();
 const http = require('http').Server(app);
 const sessionStore= new session.MemoryStore();
 const io = require('socket.io')(http);
-const cors=require('cors');
+const passportSocketIo = require('passport.socketio');
+const cors = require('cors');
 
 app.use(cors());
 
@@ -42,16 +43,27 @@ mongo.connect(process.env.DATABASE, (err, db) => {
     routes(app, db);
   
     http.listen(process.env.PORT || 3000);
-
-  io.on('connection', socket => {
-    console.log('A user has connected');
-    ++currentUsers;
-    io.emit('user count', currentUsers);
-    
-    socket.on('disconnect', socket => {
-      --currentUsers;
+  
+    io.use(passportSocketIo.authorize({
+      cookieParser: cookieParser,
+      key: 'express.sid',
+      secret: process.env.SESSION_SECRET,
+      store: sessionStore
+    }));
+  
+    io.on('connection', socket => {
+      console.log(`User ${socket.request.user.name} has connected`);
+      ++currentUsers;
       io.emit('user count', currentUsers);
-    });
+      
+      socket.on('chat message', message =>{
+        io.emit('chat message', {name: socket.request.user.name, message});
+      })
+
+      socket.on('disconnect', socket => {
+        --currentUsers;
+        io.emit('user', {name: socket.request.user.name, currentUsers, connected: true});
+      });
     
   });
   
