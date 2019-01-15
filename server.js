@@ -1,18 +1,21 @@
 'use strict';
 
-const express     = require('express');
-const session     = require('express-session');
-const bodyParser  = require('body-parser');
-const fccTesting  = require('./freeCodeCamp/fcctesting.js');
-const auth        = require('./app/auth.js');
-const routes      = require('./app/routes.js');
-const mongo       = require('mongodb').MongoClient;
-const passport    = require('passport');
-const cookieParser= require('cookie-parser')
-const app         = express();
-const http        = require('http').Server(app);
+const express = require('express');
+const session = require('express-session');
+const bodyParser = require('body-parser');
+const fccTesting = require('./freeCodeCamp/fcctesting.js');
+const auth = require('./app/auth.js');
+const routes = require('./app/routes.js');
+const mongo = require('mongodb').MongoClient;
+const passport = require('passport');
+const cookieParser = require('cookie-parser')
+const app= express();
+const http = require('http').Server(app);
 const sessionStore= new session.MemoryStore();
+const io = require('socket.io')(http);
+const cors=require('cors');
 
+app.use(cors());
 
 fccTesting(app); //For FCC testing purposes
 
@@ -30,21 +33,27 @@ app.use(session({
   store: sessionStore,
 }));
 
+var currentUsers = 0;
 
 mongo.connect(process.env.DATABASE, (err, db) => {
     if(err) console.log('Database error: ' + err);
   
     auth(app, db);
     routes(app, db);
-      
+  
     http.listen(process.env.PORT || 3000);
 
+  io.on('connection', socket => {
+    console.log('A user has connected');
+    ++currentUsers;
+    io.emit('user count', currentUsers);
+    
+    socket.on('disconnect', socket => {
+      --currentUsers;
+      io.emit('user count', currentUsers);
+    });
+    
+  });
   
-    //start socket.io code  
 
-  
-
-    //end socket.io code
-  
-  
 });
